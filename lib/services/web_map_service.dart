@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:html' as html;
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:google_maps_flutter/google_maps_flutter.dart' if (dart.library.io) 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:flutter_map/flutter_map.dart' if (dart.library.html) 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as google_maps;
+import 'package:flutter_map/flutter_map.dart' as flutter_map;
+import 'package:latlong2/latlong.dart' as latlng;
 import 'package:geolocator/geolocator.dart';
 
 class WebMapService {
@@ -51,20 +52,17 @@ class WebMapService {
     double dLat = _toRadians(lat2 - lat1);
     double dLon = _toRadians(lon2 - lon1);
 
-    double a = (dLat / 2).abs() * (dLat / 2).abs() +
-              (_toRadians(lat1) * _toRadians(lat2) * (dLon / 2).abs() * (dLon / 2).abs());
+    double a = math.pow(math.sin(dLat / 2), 2) +
+              math.cos(_toRadians(lat1)) * math.cos(_toRadians(lat2)) * 
+              math.pow(math.sin(dLon / 2), 2);
 
-    double c = 2 * _atan2(a.sqrt(), (1 - a).sqrt());
+    double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
 
     return earthRadius * c;
   }
 
   double _toRadians(double degrees) {
-    return degrees * (3.14159265359 / 180);
-  }
-
-  double _atan2(double a, double b) {
-    return a == 0 ? 0 : a.sqrt() / b.sqrt();
+    return degrees * (math.pi / 180);
   }
 
   // Create web-compatible map widget
@@ -72,7 +70,7 @@ class WebMapService {
     required double latitude,
     required double longitude,
     required double zoom,
-    List<Marker>? markers,
+    List<MerchantLocation>? locations,
     Map<String, dynamic>? options,
   }) {
     if (kIsWeb) {
@@ -80,7 +78,7 @@ class WebMapService {
         latitude: latitude,
         longitude: longitude,
         zoom: zoom,
-        markers: markers,
+        locations: locations,
         options: options,
       );
     } else {
@@ -88,7 +86,7 @@ class WebMapService {
         latitude: latitude,
         longitude: longitude,
         zoom: zoom,
-        markers: markers,
+        locations: locations,
         options: options,
       );
     }
@@ -99,27 +97,25 @@ class WebMapService {
     required double latitude,
     required double longitude,
     required double zoom,
-    List<Marker>? markers,
+    List<MerchantLocation>? locations,
     Map<String, dynamic>? options,
   }) {
-    return FlutterMap(
-      options: MapOptions(
-        initialCenter: LatLng(latitude, longitude),
+    return flutter_map.FlutterMap(
+      options: flutter_map.MapOptions(
+        initialCenter: latlng.LatLng(latitude, longitude),
         initialZoom: zoom,
         minZoom: 2.0,
         maxZoom: 18.0,
       ),
       children: [
-        TileLayer(
-          options: TileLayerOptions(
-            urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            subdomains: ['a', 'b', 'c'],
-            userAgentPackageName: 'com.example.app',
-          ),
+        flutter_map.TileLayer(
+          urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          subdomains: ['a', 'b', 'c'],
+          userAgentPackageName: 'com.example.app',
         ),
-        if (markers != null)
-          MarkerLayer(
-            markers: markers.map((marker) => _convertToFlutterMarker(marker)).toList(),
+        if (locations != null)
+          flutter_map.MarkerLayer(
+            markers: locations.map((location) => _createFlutterMarker(location)).toList(),
           ),
       ],
     );
@@ -130,15 +126,23 @@ class WebMapService {
     required double latitude,
     required double longitude,
     required double zoom,
-    List<Marker>? markers,
+    List<MerchantLocation>? locations,
     Map<String, dynamic>? options,
   }) {
-    return GoogleMap(
-      initialCameraPosition: CameraPosition(
-        target: LatLng(latitude, longitude),
+    final markers = <google_maps.Marker>{};
+    
+    if (locations != null) {
+      for (final location in locations) {
+        markers.add(_createGoogleMarker(location));
+      }
+    }
+
+    return google_maps.GoogleMap(
+      initialCameraPosition: google_maps.CameraPosition(
+        target: google_maps.LatLng(latitude, longitude),
         zoom: zoom,
       ),
-      markers: markers ?? <Marker>{},
+      markers: markers,
       myLocationEnabled: true,
       myLocationButtonEnabled: true,
       zoomControlsEnabled: true,
@@ -147,10 +151,10 @@ class WebMapService {
     );
   }
 
-  // Convert Google Maps marker to Flutter Map marker
-  Marker _convertToFlutterMarker(Marker googleMarker) {
-    return Marker(
-      point: LatLng(googleMarker.position.latitude, googleMarker.position.longitude),
+  // Create Flutter Map marker
+  flutter_map.Marker _createFlutterMarker(MerchantLocation location) {
+    return flutter_map.Marker(
+      point: latlng.LatLng(location.latitude, location.longitude),
       width: 40,
       height: 40,
       child: Container(
@@ -164,6 +168,21 @@ class WebMapService {
           color: Colors.white,
           size: 20,
         ),
+      ),
+    );
+  }
+
+  // Create Google Maps marker
+  google_maps.Marker _createGoogleMarker(MerchantLocation location) {
+    return google_maps.Marker(
+      markerId: google_maps.MarkerId(location.id),
+      position: google_maps.LatLng(location.latitude, location.longitude),
+      infoWindow: google_maps.InfoWindow(
+        title: location.name,
+        snippet: location.address,
+      ),
+      icon: google_maps.BitmapDescriptor.defaultMarkerWithHue(
+        google_maps.BitmapDescriptor.hueRed,
       ),
     );
   }

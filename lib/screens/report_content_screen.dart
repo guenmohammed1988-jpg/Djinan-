@@ -200,9 +200,9 @@ class _ReportContentScreenState extends State<ReportContentScreen> {
 
   Widget _buildReasonChip(String label, String value) {
     return FilterChip(
-      label: label,
+      label: Text(label),
       selected: _reportReason == value,
-      onSelected: () => setState(() => _reportReason = value),
+      onSelected: (bool selected) => setState(() => _reportReason = value),
       backgroundColor: _reportReason == value ? const Color(0xFFd4af37) : Colors.white.withOpacity(0.2),
       labelStyle: GoogleFonts.tajawal(
         color: _reportReason == value ? Colors.white : const Color(0xFFd4af37),
@@ -261,6 +261,7 @@ class _ReportContentScreenState extends State<ReportContentScreen> {
                       color: Colors.white,
                       fontSize: 16,
                     ),
+                  ),
                 ],
               ),
             ),
@@ -416,8 +417,16 @@ class _ReportContentScreenState extends State<ReportContentScreen> {
       final snapshot = await _moderationService.getFlaggedContent(limit: 100);
       
       setState(() {
-        _allContentIds = snapshot.docs.map((doc) => doc.id).toList();
-        _allContentData = snapshot.docs.map((doc) => doc.data()).toList();
+        _allContentIds = snapshot.map((item) => item.id).toList();
+        _allContentData = snapshot.map((item) => {
+            'id': item.id,
+            'contentId': item.contentId,
+            'userId': item.userId,
+            'reason': item.reason,
+            'description': item.description,
+            'flaggedAt': item.flaggedAt,
+            'reviewStatus': item.reviewStatus,
+          }).toList();
         _isLoading = false;
       });
     } catch (e) {
@@ -465,7 +474,6 @@ class _ReportContentScreenState extends State<ReportContentScreen> {
         contentId: _reportContentId,
         reason: _reportReason,
         description: _reportDescription,
-        analysisData: contentToReport['analysisData'] ?? {},
       );
       
       ScaffoldMessenger.of(context).showSnackBar(
@@ -715,7 +723,6 @@ class _ReportContentScreenState extends State<ReportContentScreen> {
         contentId: contentId,
         reason: 'user_report',
         description: 'تقرير من المستخدم',
-        analysisData: contentToFlag['analysisData'] ?? {},
       );
       
       ScaffoldMessenger.of(context).showSnackBar(

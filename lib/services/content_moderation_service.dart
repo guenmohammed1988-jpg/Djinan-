@@ -59,8 +59,8 @@ class ContentModerationService {
               'text': content,
             },
           },
-          {
-            'video': videoUrl != null ? {
+          if (videoUrl != null) {
+            'video': {
               'source': {
                 'videoUri': videoUrl,
               },
@@ -112,7 +112,7 @@ class ContentModerationService {
             isSpam: analysis['spam']?.contains('VERY_LIKELY') ?? false,
             isCopyright: analysis['copyright']?.contains('VERY_LIKELY') ?? false,
             isMisinformation: analysis['medical']?.contains('VERY_LIKELY') ?? false,
-            confidence: analysis['explicitAnnotation']?.toString() ?? '0.0',
+            confidence: double.tryParse(analysis['explicitAnnotation']?.toString() ?? '0.0') ?? 0.0,
             labels: _extractLabels(analysis),
             detectedObjects: _extractDetectedObjects(analysis),
             detectedText: _extractDetectedText(analysis),
@@ -185,7 +185,7 @@ class ContentModerationService {
       
       final snapshot = await _firestore
           .collection(flaggedContentCollection)
-          .where('reviewStatus', '==', 'pending_review')
+          .where('reviewStatus', isEqualTo: 'pending_review')
           .orderBy('flaggedAt', descending: true)
           .limit(limit)
           .get();
@@ -230,10 +230,10 @@ class ContentModerationService {
       // Remove from moderation queue
       await _firestore
           .collection(moderationQueueCollection)
-          .where('contentId', '==', contentId)
-          .where('action', '==', 'flag_content')
+          .where('contentId', isEqualTo: contentId)
+          .where('action', isEqualTo: 'flag_content')
           .get()
-          .then((querySnapshot) {
+          .then((querySnapshot) async {
             for (final doc in querySnapshot.docs) {
               await doc.reference.delete();
             }
@@ -263,8 +263,8 @@ class ContentModerationService {
       
       final snapshot = await _firestore
           .collection(moderationQueueCollection)
-          .where('status', '==', 'queued')
-          .orderBy('queuedAt', ascending: true)
+          .where('status', isEqualTo: 'queued')
+          .orderBy('queuedAt', descending: false)
           .limit(limit)
           .get();
       
@@ -295,8 +295,8 @@ class ContentModerationService {
       
       final snapshot = await _firestore
           .collection(moderationQueueCollection)
-          .where('status', '==', 'queued')
-          .orderBy('queuedAt', ascending: true)
+          .where('status', isEqualTo: 'queued')
+          .orderBy('queuedAt', descending: false)
           .limit(10)
           .get();
       
@@ -312,8 +312,6 @@ class ContentModerationService {
             await _processFlaggedContent(
               contentId: contentId!,
               reason: data['reason'] ?? 'auto_flagged',
-              description: data['description'] ?? '',
-              additionalData: data['additionalData'],
             );
             break;
           case 'delete_content':
@@ -346,6 +344,10 @@ class ContentModerationService {
   }
 
   // Delete content
+  Future<void> deleteContent(String contentId) async {
+    await _deleteContent(contentId);
+  }
+
   Future<void> _deleteContent(String contentId) async {
     try {
       final userId = _auth.currentUser?.uid;
@@ -363,9 +365,9 @@ class ContentModerationService {
       // Delete from moderation queue
       await _firestore
           .collection(moderationQueueCollection)
-          .where('contentId', '==', contentId)
+          .where('contentId', isEqualTo: contentId)
           .get()
-          .then((querySnapshot) {
+          .then((querySnapshot) async {
             for (final doc in querySnapshot.docs) {
               await doc.reference.delete();
             }
@@ -421,9 +423,9 @@ class ContentModerationService {
       // Remove from moderation queue
       await _firestore
           .collection(moderationQueueCollection)
-          .where('contentId', '==', contentId)
+          .where('contentId', isEqualTo: contentId)
           .get()
-          .then((querySnapshot) {
+          .then((querySnapshot) async {
             for (final doc in querySnapshot.docs) {
               await doc.reference.delete();
             }
@@ -465,9 +467,9 @@ class ContentModerationService {
       // Remove from moderation queue
       await _firestore
           .collection(moderationQueueCollection)
-          .where('contentId', '==', contentId)
+          .where('contentId', isEqualTo: contentId)
           .get()
-          .then((querySnapshot) {
+          .then((querySnapshot) async {
             for (final doc in querySnapshot.docs) {
               await doc.reference.delete();
             }
@@ -492,7 +494,15 @@ class ContentModerationService {
   Future<ModerationStats> getModerationStats() async {
     try {
       final userId = _auth.currentUser?.uid;
-      if (userId == null) return ModerationStats();
+      if (userId == null) return ModerationStats(
+        totalFlagged: 0,
+        queueSize: 0,
+        totalReports: 0,
+        autoFlagged: 0,
+        manuallyFlagged: 0,
+        processedToday: 0,
+        period: '30_days',
+      );
       
       final now = DateTime.now();
       final thirtyDaysAgo = DateTime(now.year, now.month, now.day - 30);
@@ -500,19 +510,19 @@ class ContentModerationService {
       // Get flagged content stats
       final flaggedSnapshot = await _firestore
           .collection(flaggedContentCollection)
-          .where('flaggedAt', '>=', thirtyDaysAgo)
+          .where('flaggedAt', isGreaterThanOrEqualTo: thirtyDaysAgo)
           .get();
       
       // Get moderation queue stats
       final queueSnapshot = await _firestore
           .collection(moderationQueueCollection)
-          .where('queuedAt', '>=', thirtyDaysAgo)
+          .where('queuedAt', isGreaterThanOrEqualTo: thirtyDaysAgo)
           .get();
       
       // Get reports stats
       final reportsSnapshot = await _firestore
           .collection(reportsCollection)
-          .where('createdAt', '>=', thirtyDaysAgo)
+          .where('createdAt', isGreaterThanOrEqualTo: thirtyDaysAgo)
           .get();
       
       return ModerationStats(
@@ -520,19 +530,54 @@ class ContentModerationService {
         queueSize: queueSnapshot.size,
         totalReports: reportsSnapshot.size,
         autoFlagged: flaggedSnapshot.docs
-            .where('reason', '==', 'auto_flagged')
+            .where((doc) => doc.data()['reason'] == 'auto_flagged')
             .length,
         manuallyFlagged: flaggedSnapshot.docs
-            .where('reason', '!=', 'auto_flagged')
+            .where((doc) => doc.data()['reason'] != 'auto_flagged')
             .length,
         processedToday: queueSnapshot.docs
-            .where('queuedAt', '>=', DateTime(now.year, now.month, now.day))
-            .where('status', '==', 'processed')
+            .where((doc) {
+                final data = doc.data();
+                final queuedAt = (data['queuedAt'] as Timestamp).toDate();
+                return queuedAt.isAfter(DateTime(now.year, now.month, now.day - 1)) &&
+                       data['status'] == 'processed';
+              })
             .length,
         period: '30_days',
       );
     } catch (e) {
-      return ModerationStats();
+      return ModerationStats(
+        totalFlagged: 0,
+        queueSize: 0,
+        totalReports: 0,
+        autoFlagged: 0,
+        manuallyFlagged: 0,
+        processedToday: 0,
+        period: '30_days',
+      );
+    }
+  }
+
+  // Process flagged content automatically
+  Future<void> _processFlaggedContent({
+    required String contentId,
+    required String reason,
+  }) async {
+    try {
+      final userId = _auth.currentUser?.uid;
+      if (userId == null) return;
+
+      // Add to moderation queue
+      await _firestore.collection(moderationQueueCollection).add({
+        'contentId': contentId,
+        'userId': userId,
+        'action': 'flag_content',
+        'reason': reason,
+        'queuedAt': FieldValue.serverTimestamp(),
+        'status': 'queued',
+      });
+    } catch (e) {
+      print('Error processing flagged content: $e');
     }
   }
 
@@ -560,7 +605,7 @@ class ContentModerationService {
         
         if (name.isNotEmpty && boundingPoly != null) {
           final vertices = (boundingPoly as List<dynamic>)
-              .map((vertex) => {
+              .map((vertex) {
                 final x = vertex['x'] as double?;
                 final y = vertex['y'] as double?;
                 return DetectedVertex(x: x!, y: y!);
@@ -600,7 +645,7 @@ class ContentModerationService {
         
         if (boundingPoly != null) {
           final vertices = (boundingPoly as List<dynamic>)
-              .map((vertex) => {
+              .map((vertex) {
                 final x = vertex['x'] as double?;
                 final y = vertex['y'] as double?;
                 return DetectedVertex(x: x!, y: y!);
@@ -632,7 +677,7 @@ class ContentModerationService {
         
         if (boundingPoly != null) {
           final vertices = (boundingPoly as List<dynamic>)
-              .map((vertex) => {
+              .map((vertex) {
                 final x = vertex['x'] as double?;
                 final y = vertex['y'] as double?;
                 return DetectedVertex(x: x!, y: y!);
@@ -699,47 +744,47 @@ class ContentModerationService {
     final lowerName = name.toLowerCase();
     
     // Check for weapons
-    if (contentCategories['violence'].any((weapon) => lowerName.contains(weapon))) {
+    if (contentCategories['violence']?.any((weapon) => lowerName.contains(weapon)) ?? false) {
       return 'weapon';
     }
     
     // Check for violence
-    if (contentCategories['violence'].any((violence) => lowerName.contains(violence))) {
+    if (contentCategories['violence']?.any((violence) => lowerName.contains(violence)) ?? false) {
       return 'violence';
     }
     
     // Check for hate speech
-    if (contentCategories['hate_speech'].any((hate) => lowerName.contains(hate))) {
+    if (contentCategories['hate_speech']?.any((hate) => lowerName.contains(hate)) ?? false) {
       return 'hate_speech';
     }
     
     // Check for self harm
-    if (contentCategories['self_harm'].any((harm) => lowerName.contains(harm))) {
+    if (contentCategories['self_harm']?.any((harm) => lowerName.contains(harm)) ?? false) {
       return 'self_harm';
     }
     
     // Check for adult content
-    if (contentCategories['adult_content'].any((adult) => lowerName.contains(adult))) {
+    if (contentCategories['adult_content']?.any((adult) => lowerName.contains(adult)) ?? false) {
       return 'adult_content';
     }
     
     // Check for inappropriate content
-    if (contentCategories['inappropriate'].any((inappropriate) => lowerName.contains(inappropriate))) {
+    if (contentCategories['inappropriate']?.any((inappropriate) => lowerName.contains(inappropriate)) ?? false) {
       return 'inappropriate';
     }
     
     // Check for copyright
-    if (contentCategories['copyright'].any((copyright) => lowerName.contains(copyright))) {
+    if (contentCategories['copyright']?.any((copyright) => lowerName.contains(copyright)) ?? false) {
       return 'copyright';
     }
     
     // Check for hate speech
-    if (contentCategories['hate_speech'].any((hate) => lowerName.contains(hate))) {
+    if (contentCategories['hate_speech']?.any((hate) => lowerName.contains(hate)) ?? false) {
       return 'hate_speech';
     }
     
     // Check for spam
-    if (contentCategories['spam'].any((spam) => lowerName.contains(spam))) {
+    if (contentCategories['spam']?.any((spam) => lowerName.contains(spam)) ?? false) {
       return 'spam';
     }
     

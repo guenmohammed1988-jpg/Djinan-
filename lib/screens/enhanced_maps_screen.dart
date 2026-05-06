@@ -1,12 +1,9 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/geospatial_search_service.dart';
-import '../services/web_map_service.dart';
 
 class EnhancedMapsScreen extends StatefulWidget {
   const EnhancedMapsScreen({super.key});
