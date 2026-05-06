@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:video_player/video_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../screens/report_content_screen.dart';
 
 class PostCard extends StatefulWidget {
   final Map<String, dynamic> post;
@@ -556,6 +557,28 @@ class _PostCardState extends State<PostCard> {
               ],
             ),
           ),
+          
+          // Report Button
+          GestureDetector(
+            onTap: _reportPost,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.flag_outlined,
+                  color: Colors.red,
+                  size: 24,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'إبلاغ',
+                  style: GoogleFonts.tajawal(
+                    color: Colors.red,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -641,7 +664,6 @@ class _PostCardState extends State<PostCard> {
     setState(() {
       _shareCount++;
     });
-    
     // Implement share functionality
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -655,13 +677,11 @@ class _PostCardState extends State<PostCard> {
   }
 
   void _reportPost() {
-    // Implement report functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'تم الإبلاغ عن المنشور',
-          style: GoogleFonts.tajawal(),
-        ),
+    // Navigate to report content screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ReportContentScreen(),
       ),
     );
   }

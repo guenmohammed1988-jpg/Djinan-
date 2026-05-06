@@ -3,9 +3,13 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'screens/splash_screen.dart';
+import 'screens/splash_screen_new.dart';
 import 'screens/auth_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/home_screen.dart';
+import 'services/auth_token_service.dart';
+import 'services/secure_storage_service.dart';
+import 'widgets/logout_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,15 +23,17 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Dhinan',
+      title: 'Djinan
+    ',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
       routes: {
-        '/': (context) => const SplashScreen(),
+        '/': (context) => const SplashScreenNew(),
         '/auth': (context) => const AuthScreen(),
         '/home': (context) => const HomeScreen(),
+        '/notifications': (context) => const NotificationsScreen(),
       },
     );
   }
