@@ -254,7 +254,7 @@ class _ReportContentScreenState extends State<ReportContentScreen> {
                     color: Color(0xFFd4af37),
                     size: 48,
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   Text(
                     'لا يوجد محتوى حالياً',
                     style: GoogleFonts.tajawal(
