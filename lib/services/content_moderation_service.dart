@@ -59,19 +59,21 @@ class ContentModerationService {
               'text': content,
             },
           },
-          if (videoUrl != null) {
-            'video': {
-              'source': {
-                'videoUri': videoUrl,
+          if (videoUrl != null) ...[
+            {
+              'video': {
+                'source': {
+                  'videoUri': videoUrl,
+                },
+                'features': [
+                  'SAFE_SEARCH',
+                  'LABEL_DETECTION',
+                  'WEB_DETECTION',
+                  'OBJECT_LOCALIZATION',
+                ],
               },
-              'features': [
-                'SAFE_SEARCH',
-                'LABEL_DETECTION',
-                'WEB_DETECTION',
-                'OBJECT_LOCALIZATION',
-              ],
             },
-          },
+          ],
         ],
         'features': [
           'EXPLICIT_CONTENT_DETECTION',
